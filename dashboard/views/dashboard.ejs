@@ -1,14 +1,394 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Dashboard — Honeypot</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<title>Honeypot Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#060810;color:#e2e8f0;font-family:'Courier New',monospace;font-size:16px;overflow-y:auto;overflow-x:hidden;cursor:crosshair}
+canvas#bg{position:fixed;top:0;left:0;z-index:0;pointer-events:none}
+
+.topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:#060810dd;border-bottom:1px solid #00ffcc20;backdrop-filter:blur(20px)}
+.logo{font-size:20px;font-weight:900;color:#00ffcc;letter-spacing:2px;text-transform:uppercase;animation:glitch 4s infinite}
+@keyframes glitch{
+  0%,90%,100%{text-shadow:none;transform:none}
+  91%{text-shadow:-2px 0 #ff0080,2px 0 #00ffcc;transform:translateX(-1px)}
+  92%{text-shadow:2px 0 #ff0080,-2px 0 #00ffcc;transform:translateX(1px)}
+  93%{text-shadow:none;transform:none}
+  94%{text-shadow:-2px 0 #ff0080,2px 0 #00ffcc;transform:skewX(2deg)}
+  95%{text-shadow:none;transform:none}
+}
+.live-badge{display:flex;align-items:center;gap:6px;background:#ff4d4d15;border:1px solid #ff4d4d40;padding:5px 12px;border-radius:99px}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#ff4d4d;animation:livepulse 1s infinite}
+@keyframes livepulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.5}}
+.live-text{font-size:12px;color:#ff4d4d;letter-spacing:2px}
+.btn-logout{background:transparent;border:1px solid #ff4d4d50;color:#ff4d4d;padding:8px 18px;border-radius:8px;cursor:pointer;font-family:'Courier New',monospace;font-size:13px;letter-spacing:1px;transition:all .2s}
+.btn-logout:hover{background:#ff4d4d20;border-color:#ff4d4d;box-shadow:0 0 12px #ff4d4d30}
+
+.content{position:relative;z-index:1;padding:28px 32px}
+
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:24px}
+.stat{background:#0a0e18;border:1px solid #1e2530;border-radius:16px;padding:28px 22px;position:relative;overflow:hidden;cursor:pointer;transition:all .3s}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat::after{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s;border-radius:16px}
+.stat:hover::after{opacity:1}
+.stat:hover{transform:translateY(-4px) scale(1.02)}
+.stat.green::before{background:#00ffcc}
+.stat.green::after{background:linear-gradient(135deg,#00ffcc08,transparent)}
+.stat.blue::before{background:#3b82f6}
+.stat.blue::after{background:linear-gradient(135deg,#3b82f608,transparent)}
+.stat.purple::before{background:#a78bfa}
+.stat.purple::after{background:linear-gradient(135deg,#a78bfa08,transparent)}
+.stat.amber::before{background:#fbbf24}
+.stat.amber::after{background:linear-gradient(135deg,#fbbf2408,transparent)}
+.stat-label{font-size:11px;color:#4a5568;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px}
+.stat-value{font-size:52px;font-weight:900;letter-spacing:-3px;line-height:1;transition:all .5s}
+.stat-value.bump{animation:bump .4s ease-out}
+@keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.15)}100%{transform:scale(1)}}
+.stat-sub{font-size:11px;color:#4a5568;margin-top:10px;letter-spacing:1px}
+.stat-scan{position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,#00ffcc08,transparent);animation:scan 3s linear infinite}
+@keyframes scan{to{left:200%}}
+
+.section-title{font-size:11px;color:#00ffcc;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.section-title::before{content:'';width:3px;height:14px;background:#00ffcc;border-radius:2px;display:block;box-shadow:0 0 8px #00ffcc60}
+
+.charts-row{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;margin-bottom:24px}
+.panel{background:#0a0e18;border:1px solid #1e2530;border-radius:16px;padding:24px;transition:all .3s;position:relative;overflow:hidden}
+.panel:hover{border-color:#00ffcc30;box-shadow:0 0 20px #00ffcc08}
+canvas.chart{max-height:220px}
+
+.feed-panel{background:#0a0e18;border:1px solid #1e2530;border-radius:16px;padding:24px;margin-bottom:24px;max-height:320px;overflow-y:auto}
+.feed-panel::-webkit-scrollbar{width:4px}
+.feed-panel::-webkit-scrollbar-track{background:#0a0e18}
+.feed-panel::-webkit-scrollbar-thumb{background:#00ffcc30;border-radius:2px}
+.feed-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1e253020;animation:slideIn .4s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}
+.feed-item:last-child{border-bottom:none}
+.feed-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.feed-dot.ssh{background:#3b82f6;box-shadow:0 0 6px #3b82f6}
+.feed-dot.ftp{background:#fbbf24;box-shadow:0 0 6px #fbbf24}
+.feed-dot.web{background:#a78bfa;box-shadow:0 0 6px #a78bfa}
+.feed-dot.scan{background:#f87171;box-shadow:0 0 6px #f87171}
+.feed-ip{color:#00ffcc;font-size:13px;min-width:140px;font-weight:700}
+.feed-type{font-size:11px;letter-spacing:1px}
+.feed-type.ssh{color:#3b82f6}
+.feed-type.ftp{color:#fbbf24}
+.feed-type.web{color:#a78bfa}
+.feed-type.scan{color:#f87171}
+.feed-time{color:#4a5568;font-size:11px;margin-left:auto}
+.feed-attempts{color:#fbbf24;font-size:13px;font-weight:700;min-width:40px;text-align:right}
+
+.ai-panel{background:#0a0e18;border:1px solid #a78bfa30;border-radius:16px;padding:24px;margin-bottom:24px;position:relative;overflow:hidden}
+.ai-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#7c3aed,#a78bfa,#c4b5fd,#a78bfa,#7c3aed);background-size:200%;animation:shimmer 2s linear infinite}
+@keyframes shimmer{to{background-position:200%}}
+#ai-output{font-size:14px;color:#c4b5fd;line-height:1.9;min-height:52px;white-space:pre-wrap}
+#ai-btn{background:#a78bfa15;border:1px solid #a78bfa40;color:#a78bfa;padding:10px 22px;border-radius:8px;cursor:pointer;font-size:13px;font-family:'Courier New',monospace;margin-top:16px;transition:all .2s;letter-spacing:1px}
+#ai-btn:hover{background:#a78bfa25;border-color:#a78bfa;box-shadow:0 0 16px #a78bfa30}
+#ai-btn:disabled{opacity:.3;cursor:not-allowed}
+.typing::after{content:'_';animation:blink .6s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+
+.table-panel{background:#0a0e18;border:1px solid #1e2530;border-radius:16px;padding:24px;margin-bottom:24px;overflow-x:auto}
+.table-panel:hover{border-color:#00ffcc20}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;color:#00ffcc;text-transform:uppercase;padding:12px 16px;text-align:left;border-bottom:1px solid #1e2530;letter-spacing:2px;white-space:nowrap}
+td{padding:14px 16px;border-bottom:1px solid #1e253018;white-space:nowrap}
+tr{transition:background .2s;cursor:default}
+tr:hover td{background:#00ffcc05}
+tr.new-row td{animation:rowFlash .8s ease-out}
+@keyframes rowFlash{0%{background:#00ffcc15}100%{background:transparent}}
+tr:last-child td{border-bottom:none}
+.badge{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:1px}
+.ssh{background:#3b82f615;color:#60a5fa;border:1px solid #3b82f630}
+.ftp{background:#fbbf2415;color:#fbbf24;border:1px solid #fbbf2430}
+.web{background:#a78bfa15;color:#c4b5fd;border:1px solid #a78bfa30}
+.scan{background:#f8717115;color:#f87171;border:1px solid #f8717130}
+
+.toast{position:fixed;bottom:28px;right:28px;background:#0a0e18;border:1px solid #00ffcc40;border-radius:12px;padding:14px 20px;z-index:999;animation:toastIn .4s ease-out;box-shadow:0 0 24px #00ffcc15;max-width:300px}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.toast-title{color:#00ffcc;font-size:12px;letter-spacing:2px;margin-bottom:4px}
+.toast-body{color:#e2e8f0;font-size:13px}
+
+.matrix-overlay{position:fixed;top:0;left:0;z-index:0;opacity:.03;pointer-events:none}
+</style>
 </head>
 <body>
-  <!-- topbar, stats grid, charts, table -->
-  <!-- All populated by fetch("/api/stats") and fetch("/api/attacks") -->
-  <script src="/js/dashboard.js"></script>
+<canvas id="bg"></canvas>
+<canvas id="matrix" class="matrix-overlay"></canvas>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="logo">Honeypot Monitor</div>
+    <div class="live-badge"><div class="live-dot"></div><span class="live-text">LIVE</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="clock" style="color:#4a5568;font-size:12px;letter-spacing:1px"></span>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn-logout" type="submit">LOGOUT</button>
+    </form>
+  </div>
+</div>
+
+<div class="content">
+  <div class="grid">
+    <div class="stat green" onclick="this.querySelector('.stat-value').classList.add('bump');setTimeout(()=>this.querySelector('.stat-value').classList.remove('bump'),400)">
+      <div class="stat-scan"></div>
+      <div class="stat-label">Total Attempts</div>
+      <div class="stat-value" id="total" style="color:#00ffcc">0</div>
+      <div class="stat-sub">all time hits</div>
+    </div>
+    <div class="stat blue">
+      <div class="stat-scan" style="animation-delay:.5s"></div>
+      <div class="stat-label">Unique IPs</div>
+      <div class="stat-value" id="ips" style="color:#60a5fa">0</div>
+      <div class="stat-sub">distinct attackers</div>
+    </div>
+    <div class="stat purple">
+      <div class="stat-scan" style="animation-delay:1s"></div>
+      <div class="stat-label">Attack Types</div>
+      <div class="stat-value" id="types" style="color:#c4b5fd">0</div>
+      <div class="stat-sub">methods detected</div>
+    </div>
+    <div class="stat amber">
+      <div class="stat-scan" style="animation-delay:1.5s"></div>
+      <div class="stat-label">Top Attacker</div>
+      <div class="stat-value" style="font-size:18px;color:#fbbf24;margin-top:10px;letter-spacing:0" id="topip">—</div>
+      <div class="stat-sub">most active IP</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="panel">
+      <div class="section-title">Attack type breakdown</div>
+      <canvas class="chart" id="doughChart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="section-title">Top attacking IPs</div>
+      <canvas class="chart" id="barChart"></canvas>
+    </div>
+  </div>
+
+  <div class="feed-panel">
+    <div class="section-title">Live attack feed</div>
+    <div id="live-feed"><div style="color:#4a5568;font-size:13px;padding:10px 0">Waiting for attacks...</div></div>
+  </div>
+
+  <div class="ai-panel">
+    <div class="section-title">AI Threat Analysis — Gemini</div>
+    <div id="ai-output">Click the button below to analyse current attack patterns with AI.</div>
+    <button id="ai-btn" onclick="runAI()">ANALYSE THREATS WITH AI</button>
+  </div>
+
+  <div class="table-panel">
+    <div class="section-title">Attack log</div>
+    <table>
+      <thead>
+        <tr><th>IP Address</th><th>Country</th><th>First Seen</th><th>Last Seen</th><th>Type</th><th>Attempts</th></tr>
+      </thead>
+      <tbody id="atk-table">
+        <tr><td colspan="6" style="color:#4a5568;text-align:center;padding:28px">No attacks yet — bots are coming...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+setInterval(()=>{
+  const now=new Date();
+  document.getElementById('clock').textContent=now.toUTCString().split(' ').slice(1,5).join(' ')+' UTC';
+},1000);
+
+const bgCanvas=document.getElementById('bg');
+const bgCtx=bgCanvas.getContext('2d');
+bgCanvas.width=window.innerWidth;bgCanvas.height=window.innerHeight;
+window.addEventListener('resize',()=>{bgCanvas.width=window.innerWidth;bgCanvas.height=window.innerHeight;});
+let mouse={x:window.innerWidth/2,y:window.innerHeight/2};
+document.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+const pts=Array.from({length:80},()=>({
+  x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
+  r:Math.random()*1.5+.3,dx:(Math.random()-.5)*.4,dy:(Math.random()-.5)*.4,
+  alpha:Math.random()*.2+.04,
+  color:Math.random()>.6?'0,255,204':Math.random()>.5?'167,139,250':'59,130,246'
+}));
+function drawBg(){
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  pts.forEach(p=>{
+    const dx=mouse.x-p.x,dy=mouse.y-p.y,dist=Math.hypot(dx,dy);
+    if(dist<150){p.x-=dx*.008;p.y-=dy*.008;}
+    p.x+=p.dx;p.y+=p.dy;
+    if(p.x<0||p.x>bgCanvas.width)p.dx*=-1;
+    if(p.y<0||p.y>bgCanvas.height)p.dy*=-1;
+    bgCtx.beginPath();bgCtx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    bgCtx.fillStyle=`rgba(${p.color},${p.alpha})`;bgCtx.fill();
+  });
+  pts.forEach((a,i)=>pts.slice(i+1).forEach(b=>{
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<140){bgCtx.beginPath();bgCtx.moveTo(a.x,a.y);bgCtx.lineTo(b.x,b.y);
+    bgCtx.strokeStyle=`rgba(0,255,204,${.08*(1-d/140)})`;bgCtx.lineWidth=.4;bgCtx.stroke();}
+  }));
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+
+const mc=document.getElementById('matrix');
+const mCtx=mc.getContext('2d');
+mc.width=window.innerWidth;mc.height=window.innerHeight;
+const cols=Math.floor(window.innerWidth/16);
+const drops=Array(cols).fill(1);
+const chars='01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
+function drawMatrix(){
+  mCtx.fillStyle='rgba(6,8,16,0.05)';mCtx.fillRect(0,0,mc.width,mc.height);
+  mCtx.fillStyle='#00ffcc';mCtx.font='13px monospace';
+  drops.forEach((y,i)=>{
+    mCtx.fillText(chars[Math.floor(Math.random()*chars.length)],i*16,y*16);
+    if(y*16>mc.height&&Math.random()>.975)drops[i]=0;
+    drops[i]++;
+  });
+}
+setInterval(drawMatrix,60);
+
+function animateCount(el,target){
+  const start=parseInt(el.textContent)||0;
+  if(start===target)return;
+  const diff=target-start;
+  const steps=20;
+  let step=0;
+  const timer=setInterval(()=>{
+    step++;
+    el.textContent=Math.round(start+(diff*(step/steps)));
+    if(step>=steps){el.textContent=target;clearInterval(timer);}
+  },30);
+}
+
+function showToast(title,body){
+  const t=document.createElement('div');
+  t.className='toast';
+  t.innerHTML=`<div class="toast-title">${title}</div><div class="toast-body">${body}</div>`;
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.animation='toastIn .4s ease-out reverse';setTimeout(()=>t.remove(),400);},4000);
+}
+
+const typeMap={
+  SSH_PROBE:'ssh',
+  FTP_LOGIN:'ftp',
+  WEB_LOGIN:'web',
+  WEB_LOGIN_ATTEMPT:'web',
+  PORT_SCAN:'scan',
+  TELNET_PROBE:'telnet',
+  TELNET_LOGIN:'telnet',
+  MYSQL_PROBE:'mysql',
+  MYSQL_LOGIN:'mysql',
+  REDIS_PROBE:'redis',
+  REDIS_CMD:'redis'
+};
+const typeLabel={ssh:'SSH',ftp:'FTP',web:'WEB',scan:'SCAN'};
+let prevTotal=0,doughInstance=null,barInstance=null;
+let currentStats={},currentAttacks=[];
+
+async function loadData(){
+  try{
+    const [s,a]=await Promise.all([
+      fetch('/api/stats').then(r=>r.json()),
+      fetch('/api/attacks').then(r=>r.json())
+    ]);
+    currentStats=s;currentAttacks=a;
+    const total=s.total_attempts||0;
+    if(total>prevTotal&&prevTotal>0){
+      showToast('NEW ATTACK DETECTED',`${total-prevTotal} new attempt(s) logged`);
+    }
+    prevTotal=total;
+
+    animateCount(document.getElementById('total'),total);
+    animateCount(document.getElementById('ips'),s.total_unique_ips||0);
+    animateCount(document.getElementById('types'),Object.keys(s.attack_types||{}).length);
+    document.getElementById('topip').textContent=s.top_ips?.[0]?.ip||'—';
+
+    const types=s.attack_types||{};
+    if(doughInstance)doughInstance.destroy();
+    if(Object.keys(types).length>0){
+      doughInstance=new Chart(document.getElementById('doughChart'),{
+        type:'doughnut',
+        data:{labels:Object.keys(types),datasets:[{data:Object.values(types),backgroundColor:['#3b82f6','#fbbf24','#a78bfa','#f87171','#00ffcc'],borderColor:'#0a0e18',borderWidth:4,hoverOffset:8}]},
+        options:{responsive:true,cutout:'70%',animation:{duration:800},plugins:{legend:{position:'right',labels:{color:'#9ca3af',boxWidth:14,padding:14,font:{size:12,family:"'Courier New',monospace"}}}}}
+      });
+    }
+
+    const topIps=s.top_ips||[];
+    if(barInstance)barInstance.destroy();
+    if(topIps.length>0){
+      barInstance=new Chart(document.getElementById('barChart'),{
+        type:'bar',
+        data:{labels:topIps.map(i=>i.ip),datasets:[{data:topIps.map(i=>i.attempts),backgroundColor:topIps.map((_,i)=>`rgba(0,255,204,${1-i*.15})`),borderRadius:6,borderSkipped:false}]},
+        options:{responsive:true,animation:{duration:800},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7688',font:{size:10,family:"'Courier New',monospace"}},grid:{color:'#1e253020'}},y:{ticks:{color:'#6b7688',font:{size:10}},grid:{color:'#1e253020'}}}}
+      });
+    }
+
+    const feed=document.getElementById('live-feed');
+    if(a.length===0){
+      feed.innerHTML='<div style="color:#4a5568;font-size:13px;padding:10px 0">Waiting for attacks...</div>';
+    } else {
+      const events=[];
+      a.forEach(ip=>{
+        (ip.events||[]).forEach(ev=>{
+          events.push({ip:ip.ip,type:ev.type,time:ev.timestamp,attempts:ip.attempts});
+        });
+      });
+      events.sort((a,b)=>new Date(b.time)-new Date(a.time));
+      feed.innerHTML=events.slice(0,20).map(ev=>{
+        const cls=typeMap[ev.type]||'ssh';
+        const t=new Date(ev.time).toLocaleTimeString();
+        return `<div class="feed-item">
+          <div class="feed-dot ${cls}"></div>
+          <div class="feed-ip">${ev.ip}</div>
+          <div class="feed-type ${cls}">${ev.type}</div>
+          <div class="feed-time">${t}</div>
+          <div class="feed-attempts">${ev.attempts}x</div>
+        </div>`;
+      }).join('');
+    }
+
+    const tbody=document.getElementById('atk-table');
+    if(a.length===0){
+      tbody.innerHTML='<tr><td colspan="6" style="color:#4a5568;text-align:center;padding:28px">No attacks yet — bots are coming...</td></tr>';
+    } else {
+      tbody.innerHTML=a.map((x,i)=>{
+        const cls=typeMap[x.events?.[0]?.type]||'ssh';
+        const lbl=x.events?.[0]?.type||'-';
+        return `<tr class="${i===0?'new-row':''}">
+          <td style="color:#00ffcc;font-weight:700">${x.ip}</td>
+          <td style="color:#4a5568">—</td>
+          <td style="color:#6b7688;font-size:12px">${(x.first_seen||'-').replace('T',' ').split('.')[0]}</td>
+          <td style="color:#6b7688;font-size:12px">${(x.last_seen||'-').replace('T',' ').split('.')[0]}</td>
+          <td><span class="badge ${cls}">${lbl}</span></td>
+          <td style="color:#fbbf24;font-weight:700;font-size:16px">${x.attempts}</td>
+        </tr>`;
+      }).join('');
+    }
+  }catch(e){console.error(e);}
+}
+
+async function runAI(){
+  const btn=document.getElementById('ai-btn');
+  const out=document.getElementById('ai-output');
+  btn.disabled=true;btn.textContent='ANALYSING...';
+  out.className='typing';out.textContent='';
+  try{
+    const res=await fetch('/api/ai-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stats:currentStats,attacks:currentAttacks.slice(0,10)})});
+    const data=await res.json();
+    out.className='';
+    const text=data.analysis||'No analysis available.';
+    let i=0;
+    const timer=setInterval(()=>{
+      out.textContent=text.slice(0,i++);
+      if(i>text.length)clearInterval(timer);
+    },18);
+  }catch(e){out.className='';out.textContent='Error running AI analysis.';}
+  btn.disabled=false;btn.textContent='ANALYSE THREATS WITH AI';
+}
+
+loadData();
+setInterval(loadData,8000);
+</script>
 </body>
 </html>

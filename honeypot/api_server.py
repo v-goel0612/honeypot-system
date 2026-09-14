@@ -3,7 +3,7 @@ import os
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-LOG_FILE = "../logs/attacks.json"
+LOG_FILE = "/home/ubuntu/honeypot-system/logs/attacks.json"
 API_KEY = os.getenv("HONEYPOT_API_KEY", "supersecret-key")
 
 def require_api_key(f):

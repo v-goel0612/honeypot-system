@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-LOG_FILE = "../logs/attacks.json"
+LOG_FILE = "/home/ubuntu/honeypot-system/logs/attacks.json"
 
 def log_attack(ip: str, port: int, attack_type: str, data: str = ""):
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)

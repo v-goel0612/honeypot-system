@@ -1,29 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Login — Honeypot</title>
-  <link rel="stylesheet" href="/css/style.css">
+<meta charset="UTF-8">
+<title>Honeypot Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0c0f;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:hidden}
+canvas#bg{position:fixed;top:0;left:0;z-index:0}
+.card{position:relative;z-index:1;background:#111318cc;backdrop-filter:blur(12px);border:1px solid #00d4aa30;border-radius:16px;padding:2.5rem 2rem;width:340px}
+h1{font-size:20px;margin-bottom:4px}
+p{color:#6b7688;font-size:12px;margin-bottom:2rem;font-family:monospace}
+.badge{display:inline-block;background:#fbbf2420;color:#fbbf24;font-size:10px;padding:2px 8px;border-radius:99px;margin-bottom:1.5rem}
+label{display:block;font-size:11px;color:#6b7688;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
+.field{margin-bottom:1rem}
+input{width:100%;background:#0a0c0f;border:1px solid #1e2530;color:#e2e8f0;padding:10px 12px;border-radius:8px;font-size:13px;outline:none;font-family:monospace}
+input:focus{border-color:#00d4aa;box-shadow:0 0 0 2px #00d4aa18}
+.err{color:#f87171;font-size:12px;margin-bottom:1rem;font-family:monospace}
+button{width:100%;padding:10px;background:#00d4aa;color:#0a0c0f;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;margin-top:0.5rem;transition:opacity .15s}
+button:hover{opacity:.85}
+</style>
 </head>
-<body class="login-body">
-  <div class="login-card">
-    <div class="badge-warning">⚠ RESTRICTED ACCESS</div>
-    <h1>Honeypot Admin</h1>
-    <p>// threat monitoring console</p>
-    <% if (error) { %>
-      <div class="error-msg"><%= error %></div>
-    <% } %>
-    <form method="POST" action="/login">
-      <div class="field">
-        <label>Username</label>
-        <input type="text" name="username" required autofocus />
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" name="password" required />
-      </div>
-      <button type="submit" class="btn-login">Sign In →</button>
-    </form>
-  </div>
+<body>
+<canvas id="bg"></canvas>
+<div class="card">
+  <div class="badge">⚠ RESTRICTED ACCESS</div>
+  <h1>Honeypot Admin</h1>
+  <p>// threat monitoring console v2.1</p>
+  <% if (error) { %><div class="err"><%= error %></div><% } %>
+  <form method="POST" action="/login">
+    <div class="field"><label>Username</label><input type="text" name="username" required autofocus/></div>
+    <div class="field"><label>Password</label><input type="password" name="password" required/></div>
+    <button type="submit">Sign In →</button>
+  </form>
+</div>
+<script>
+const canvas = document.getElementById('bg');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+
+const particles = Array.from({length: 80}, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height,
+  r: Math.random() * 1.5 + 0.5,
+  dx: (Math.random() - 0.5) * 0.4,
+  dy: (Math.random() - 0.5) * 0.4,
+  alpha: Math.random() * 0.5 + 0.1
+}));
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.x += p.dx; p.y += p.dy;
+    if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
+    if (p.y < 0 || p.y > canvas.height) p.dy *= -1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,212,170,${p.alpha})`;
+    ctx.fill();
+  });
+  particles.forEach((a, i) => {
+    particles.slice(i+1).forEach(b => {
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (dist < 120) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(0,212,170,${0.15 * (1 - dist/120)})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    });
+  });
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
 </body>
 </html>
